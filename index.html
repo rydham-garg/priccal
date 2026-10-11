@@ -1,0 +1,572 @@
+<title>Urban Panda CPP Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout concept: a two-column ledger — inputs on the left in grouped cards,
+     a sticky results statement on the right led by a KPI strip and a go/no-go verdict. */
+  :root{
+    --bg:#EEF1F0;
+    --surface:#FFFFFF;
+    --surface-2:#F5F7F6;
+    --ink:#15181A;
+    --muted:#5B6460;
+    --faint:#8A928E;
+    --border:#DADFDC;
+    --accent:#0E6B57;
+    --accent-ink:#06332A;
+    --accent-soft:#DEEFE9;
+    --positive:#1E7A4C;
+    --positive-soft:#E3F3E9;
+    --negative:#B3382A;
+    --negative-soft:#FBE7E3;
+    --warn:#95641B;
+    --warn-soft:#F6E9D2;
+    --focus:#0E6B57;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#111412;
+      --surface:#191D1A;
+      --surface-2:#1F2420;
+      --ink:#EDEFEC;
+      --muted:#A3ACA6;
+      --faint:#737C76;
+      --border:#2B312C;
+      --accent:#49C79B;
+      --accent-ink:#D9F5E9;
+      --accent-soft:#1B332B;
+      --positive:#52C98A;
+      --positive-soft:#19301F;
+      --negative:#E88376;
+      --negative-soft:#33201C;
+      --warn:#E3B55B;
+      --warn-soft:#332A17;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#111412;
+    --surface:#191D1A;
+    --surface-2:#1F2420;
+    --ink:#EDEFEC;
+    --muted:#A3ACA6;
+    --faint:#737C76;
+    --border:#2B312C;
+    --accent:#49C79B;
+    --accent-ink:#D9F5E9;
+    --accent-soft:#1B332B;
+    --positive:#52C98A;
+    --positive-soft:#19301F;
+    --negative:#E88376;
+    --negative-soft:#33201C;
+    --warn:#E3B55B;
+    --warn-soft:#332A17;
+    color-scheme: dark;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding-inline:20px;
+    padding-block:28px 56px;
+    min-width:0;
+  }
+  h1,h2,h3{
+    font-family:"Archivo", system-ui, sans-serif;
+    letter-spacing:-0.01em;
+    text-wrap:balance;
+    margin:0;
+  }
+  .mono, .num{
+    font-family:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .wrap{ max-width:1180px; margin-inline:auto; }
+
+  /* ---------- Header ---------- */
+  header.top{
+    display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between;
+    gap:16px; margin-bottom:22px;
+  }
+  .brand{ display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .brand .eyebrow{
+    font-family:"Archivo"; font-weight:700; font-size:12px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--accent);
+  }
+  .brand h1{ font-size:clamp(24px,3.4vw,32px); font-weight:800; }
+  .brand p{ margin:0; color:var(--muted); font-size:14.5px; max-width:52ch; }
+
+  .presets{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    font-family:"Archivo"; font-size:12.5px; font-weight:600;
+    border:1px solid var(--border); background:var(--surface);
+    color:var(--ink); padding:8px 13px; border-radius:999px;
+    cursor:pointer; transition:border-color .15s, background .15s, color .15s;
+    white-space:nowrap;
+  }
+  .chip:hover{ border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft); }
+  .chip:focus-visible{ outline:2px solid var(--focus); outline-offset:2px; }
+  .chip.danger:hover{ border-color:var(--negative); color:var(--negative); background:var(--negative-soft); }
+
+  .note-banner{
+    display:flex; gap:10px; align-items:flex-start;
+    background:var(--accent-soft); border:1px solid var(--border);
+    border-left:3px solid var(--accent); border-radius:8px;
+    padding:10px 14px; margin-bottom:24px; font-size:13.5px; color:var(--accent-ink);
+  }
+  .note-banner b{ font-family:"Archivo"; }
+
+  /* ---------- Layout ---------- */
+  .layout{ display:grid; grid-template-columns: minmax(0,1.05fr) minmax(0,0.95fr); gap:26px; align-items:start; }
+  @media (max-width:920px){ .layout{ grid-template-columns:1fr; } }
+
+  .panel{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:20px 20px 22px;
+  }
+  .panel + .panel{ margin-top:18px; }
+  .panel h2{
+    font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:16px;
+  }
+  .panel h2 span.count{ color:var(--faint); font-weight:500; text-transform:none; letter-spacing:0; }
+
+  .field-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 16px; }
+  @media (max-width:420px){ .field-grid{ grid-template-columns:1fr; } }
+  .field{ display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .field label{ font-size:12.5px; color:var(--muted); }
+  .field label em{ font-style:normal; color:var(--faint); font-size:11.5px; display:block; }
+  .field .unit-input{
+    display:flex; align-items:center; border:1px solid var(--border); border-radius:8px;
+    background:var(--surface-2); overflow:hidden;
+  }
+  .field .unit-input:focus-within{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .field .unit-input span{
+    padding:0 10px; color:var(--faint); font-family:"IBM Plex Mono"; font-size:13px; flex:none;
+  }
+  .field input{
+    width:100%; border:0; background:transparent; padding:10px 10px 10px 2px;
+    font-family:"IBM Plex Mono"; font-size:14.5px; color:var(--ink); min-width:0;
+  }
+  .field input:focus{ outline:none; }
+  .field input::-webkit-outer-spin-button, .field input::-webkit-inner-spin-button{ opacity:.5; }
+
+  /* ---------- KPI strip ---------- */
+  .kpis{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
+    background:var(--border); border:1px solid var(--border); border-radius:14px; overflow:hidden;
+    margin-bottom:18px;
+  }
+  @media (max-width:700px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
+  .kpi{ background:var(--surface); padding:16px 16px 15px; min-width:0; }
+  .kpi .k-label{ font-size:11.5px; color:var(--muted); letter-spacing:.03em; margin-bottom:6px; }
+  .kpi .k-value{ font-size:clamp(17px,2.1vw,21px); font-weight:600; line-height:1.15; }
+  .kpi .k-sub{ font-size:11px; color:var(--faint); margin-top:4px; }
+
+  .verdict{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    border-radius:14px; padding:16px 18px; margin-bottom:18px; border:1px solid var(--border);
+  }
+  .verdict .dot{ width:11px; height:11px; border-radius:50%; flex:none; }
+  .verdict .v-text{ font-family:"Archivo"; font-weight:700; font-size:15px; }
+  .verdict .v-sub{ font-size:13px; color:var(--muted); font-family:"Public Sans"; font-weight:400; }
+  .verdict.good{ background:var(--positive-soft); }
+  .verdict.good .dot{ background:var(--positive); }
+  .verdict.good .v-text{ color:var(--positive); }
+  .verdict.warn{ background:var(--warn-soft); }
+  .verdict.warn .dot{ background:var(--warn); }
+  .verdict.warn .v-text{ color:var(--warn); }
+  .verdict.bad{ background:var(--negative-soft); }
+  .verdict.bad .dot{ background:var(--negative); }
+  .verdict.bad .v-text{ color:var(--negative); }
+
+  /* ---------- Ledger rows ---------- */
+  .ledger{ display:flex; flex-direction:column; }
+  .lrow{
+    display:flex; justify-content:space-between; gap:12px; align-items:baseline;
+    padding:9px 0; border-bottom:1px dashed var(--border); font-size:13.5px;
+  }
+  .lrow:last-child{ border-bottom:0; }
+  .lrow .l-label{ color:var(--muted); min-width:0; }
+  .lrow .l-label .hint{ color:var(--faint); font-size:11.5px; display:block; }
+  .lrow .l-value{ font-weight:600; white-space:nowrap; }
+  .lrow.total{ border-top:1px solid var(--border); border-bottom:0; padding-top:12px; margin-top:4px; }
+  .lrow.total .l-label{ color:var(--ink); font-family:"Archivo"; font-weight:700; font-size:14px; }
+  .lrow.total .l-value{ font-size:16px; }
+  .pos{ color:var(--positive); }
+  .neg{ color:var(--negative); }
+
+  details.formulas{
+    margin-top:22px; border:1px solid var(--border); border-radius:12px;
+    background:var(--surface); padding:4px 18px;
+  }
+  details.formulas summary{
+    cursor:pointer; padding:12px 0; font-family:"Archivo"; font-weight:700; font-size:13px;
+    letter-spacing:.03em; color:var(--muted); list-style:none;
+  }
+  details.formulas summary::-webkit-details-marker{ display:none; }
+  details.formulas summary::before{ content:"+ "; color:var(--accent); }
+  details.formulas[open] summary::before{ content:"− "; }
+  .formula-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 24px; padding-bottom:16px; font-size:12.5px; color:var(--muted); }
+  @media (max-width:700px){ .formula-grid{ grid-template-columns:1fr; } }
+  .formula-grid div b{ color:var(--ink); font-family:"IBM Plex Mono"; font-weight:500; display:block; font-size:12px; }
+
+  footer.page{ margin-top:30px; color:var(--faint); font-size:12px; text-align:left; }
+</style>
+
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <span class="eyebrow">Urban Panda · PandaPull</span>
+      <h1>CPP &amp; cash-flow calculator</h1>
+      <p>Mirrors the COD + Prepaid, GST-aware math from your Sheets dashboard — change any field and every result updates live.</p>
+    </div>
+    <div class="presets">
+      <button class="chip" type="button" data-preset="current">Current pricing, blank orders</button>
+      <button class="chip danger" type="button" data-preset="clear">Clear all</button>
+    </div>
+  </header>
+
+  <div class="note-banner">
+    <span>ⓘ</span>
+    <span><b>Pre-filled with your current pricing</b> — ₹699 COD / ₹599 Prepaid. Enter your order numbers and ad spend to see the verdict live. All figures assume 18% GST, same as the sheet.</span>
+  </div>
+
+  <div class="layout">
+
+    <!-- ===================== INPUTS ===================== -->
+    <div class="inputs-col">
+
+      <div class="panel">
+        <h2>Orders &amp; delivery</h2>
+        <div class="field-grid">
+          <div class="field">
+            <label for="totalOrders">Total orders</label>
+            <div class="unit-input"><span>#</span><input type="number" id="totalOrders" min="0" step="1" value="0"></div>
+          </div>
+          <div class="field">
+            <label for="confirmedOrders">Confirmed orders</label>
+            <div class="unit-input"><span>#</span><input type="number" id="confirmedOrders" min="0" step="1" value="0"></div>
+          </div>
+          <div class="field">
+            <label for="deliveredOrders">Delivered orders<em>Across COD + Prepaid</em></label>
+            <div class="unit-input"><span>#</span><input type="number" id="deliveredOrders" min="0" step="1" value="0"></div>
+          </div>
+          <div class="field">
+            <label for="prepaidOrders">Prepaid orders</label>
+            <div class="unit-input"><span>#</span><input type="number" id="prepaidOrders" min="0" step="1" value="0"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Selling price</h2>
+        <div class="field-grid">
+          <div class="field">
+            <label for="codPrice">COD selling price</label>
+            <div class="unit-input"><span>₹</span><input type="number" id="codPrice" min="0" step="1" value="699"></div>
+          </div>
+          <div class="field">
+            <label for="prepaidPrice">Prepaid selling price</label>
+            <div class="unit-input"><span>₹</span><input type="number" id="prepaidPrice" min="0" step="1" value="599"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Payment gateway (per prepaid order)</h2>
+        <div class="field-grid">
+          <div class="field">
+            <label for="gatewayFeeEx">Razorpay fee, ex GST</label>
+            <div class="unit-input"><span>₹</span><input type="number" id="gatewayFeeEx" min="0" step="0.01" value="15.98"></div>
+          </div>
+          <div class="field">
+            <label for="gatewayFeeGst">GST on gateway fee (ITC)</label>
+            <div class="unit-input"><span>₹</span><input type="number" id="gatewayFeeGst" min="0" step="0.01" value="2.88"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Costs &amp; ad spend</h2>
+        <div class="field-grid">
+          <div class="field">
+            <label for="supplierCost">Supplier cost, incl GST<em>Per unit, from Dropdash</em></label>
+            <div class="unit-input"><span>₹</span><input type="number" id="supplierCost" min="0" step="1" value="240"></div>
+          </div>
+          <div class="field">
+            <label for="rtoCost">RTO cost<em>Per returned COD order</em></label>
+            <div class="unit-input"><span>₹</span><input type="number" id="rtoCost" min="0" step="1" value="75"></div>
+          </div>
+          <div class="field">
+            <label for="otherExpenses">Other expenses</label>
+            <div class="unit-input"><span>₹</span><input type="number" id="otherExpenses" min="0" step="1" value="0"></div>
+          </div>
+          <div class="field">
+            <label for="metaSpendEx">Meta ad spend, ex GST</label>
+            <div class="unit-input"><span>₹</span><input type="number" id="metaSpendEx" min="0" step="1" value="0"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Your scale-up target</h2>
+        <div class="field-grid">
+          <div class="field">
+            <label for="targetCpp">Target Meta CPP, ex GST<em>Your 50-orders/day goal</em></label>
+            <div class="unit-input"><span>₹</span><input type="number" id="targetCpp" min="0" step="1" value="90"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ===================== RESULTS ===================== -->
+    <div class="results-col">
+      <div id="verdict" class="verdict good">
+        <span class="dot"></span>
+        <div>
+          <div class="v-text" id="verdictText">—</div>
+          <div class="v-sub" id="verdictSub">—</div>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi">
+          <div class="k-label">Net cash</div>
+          <div class="k-value num" id="kpiNetCash">₹0.00</div>
+          <div class="k-sub">Cash in − cash out</div>
+        </div>
+        <div class="kpi">
+          <div class="k-label">Profit after GST</div>
+          <div class="k-value num" id="kpiProfitAfterGst">₹0.00</div>
+          <div class="k-sub">Net cash − GST payable</div>
+        </div>
+        <div class="kpi">
+          <div class="k-label">Break-even CPP, ex GST</div>
+          <div class="k-value num" id="kpiBreakeven">₹0.00</div>
+          <div class="k-sub">Max Meta CPP to stay flat</div>
+        </div>
+        <div class="kpi">
+          <div class="k-label">Delivery rate</div>
+          <div class="k-value num" id="kpiDeliveryRate">0.00%</div>
+          <div class="k-sub">Delivered ÷ total orders</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Cash received</h2>
+        <div class="ledger">
+          <div class="lrow"><div class="l-label">COD delivered<span class="hint" id="codDeliveredHint">— orders</span></div><div class="l-value num" id="rCodDelivered">0</div></div>
+          <div class="lrow"><div class="l-label">COD margin received<span class="hint">Delivered × (price − supplier cost) − RTO charges</span></div><div class="l-value num" id="rCodMargin">₹0.00</div></div>
+          <div class="lrow"><div class="l-label">Prepaid revenue<span class="hint">Prepaid orders × net settlement</span></div><div class="l-value num" id="rPrepaidRevenue">₹0.00</div></div>
+          <div class="lrow total"><div class="l-label">Total cash received</div><div class="l-value num" id="rTotalCashIn">₹0.00</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Cash paid out</h2>
+        <div class="ledger">
+          <div class="lrow"><div class="l-label">Meta spend, incl GST</div><div class="l-value num" id="rMetaSpendIncl">₹0.00</div></div>
+          <div class="lrow"><div class="l-label">Supplier payment<span class="hint">Prepaid orders × supplier cost</span></div><div class="l-value num" id="rSupplierPayment">₹0.00</div></div>
+          <div class="lrow"><div class="l-label">Other expenses</div><div class="l-value num" id="rOtherExp">₹0.00</div></div>
+          <div class="lrow total"><div class="l-label">Total cash outflow</div><div class="l-value num" id="rTotalCashOut">₹0.00</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>GST workings</h2>
+        <div class="ledger">
+          <div class="lrow"><div class="l-label">Output GST<span class="hint">On COD + prepaid revenue</span></div><div class="l-value num" id="rOutputGst">₹0.00</div></div>
+          <div class="lrow"><div class="l-label">Input GST (ITC)<span class="hint">Ads, gateway fee, supplier cost, expenses</span></div><div class="l-value num" id="rInputGst">₹0.00</div></div>
+          <div class="lrow total"><div class="l-label">Net GST payable / (ITC credit)</div><div class="l-value num" id="rNetGst">₹0.00</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Ratios</h2>
+        <div class="ledger">
+          <div class="lrow"><div class="l-label">Meta CPP, ex GST<span class="hint">Ad spend ÷ total orders</span></div><div class="l-value num" id="rMetaCpp">₹0.00</div></div>
+          <div class="lrow"><div class="l-label">Break-even CPP, incl GST</div><div class="l-value num" id="rBreakevenIncl">₹0.00</div></div>
+          <div class="lrow"><div class="l-label">Profit per delivered order</div><div class="l-value num" id="rProfitPerDelivered">₹0.00</div></div>
+          <div class="lrow"><div class="l-label">Cash received per COD delivered<span class="hint">Sheet's "Cash margin %" — total cash in ÷ COD delivered</span></div><div class="l-value num" id="rCashMargin">0.00%</div></div>
+        </div>
+      </div>
+
+      <details class="formulas">
+        <summary>How the numbers are calculated</summary>
+        <div class="formula-grid">
+          <div><b>COD orders = Total − Prepaid</b>COD delivered = Delivered − Prepaid. COD RTO = COD orders − COD delivered.</div>
+          <div><b>RTO charges = COD RTO × RTO cost</b>Deducted from COD margin, not from the supplier payment.</div>
+          <div><b>COD margin = Delivered × (price − supplier cost) − RTO charges</b>Supplier cost is netted out of COD orders directly.</div>
+          <div><b>Net prepaid settlement = Prepaid price − gateway fee − GST on fee</b>Razorpay fee is charged per prepaid order.</div>
+          <div><b>Supplier payment = Prepaid orders × supplier cost</b>Paid separately, since prepaid revenue arrives gross.</div>
+          <div><b>Break-even CPP = (Cash in − supplier payment − other expenses) ÷ 1.18 ÷ Total orders</b>The highest ex-GST Meta CPP that keeps net cash at zero.</div>
+          <div><b>Output GST = (COD delivered × price + Prepaid orders × price) × 18⁄118</b>GST on revenue, extracted from GST-inclusive prices.</div>
+          <div><b>Input GST (ITC) = 18% of ad spend + gateway GST × prepaid orders + 18⁄118 of (supplier cost × delivered) + 18⁄118 of other expenses</b>Claimable input credit.</div>
+        </div>
+      </details>
+
+      <footer class="page">All figures assume 18% GST throughout, matching the Sheets model. This is a working calculator, not filed tax or accounting advice.</footer>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+
+  const ids = ["totalOrders","confirmedOrders","deliveredOrders","prepaidOrders",
+    "codPrice","prepaidPrice","gatewayFeeEx","gatewayFeeGst",
+    "supplierCost","rtoCost","otherExpenses","metaSpendEx","targetCpp"];
+
+  const PRESETS = {
+    current: {totalOrders:0, confirmedOrders:0, deliveredOrders:0, prepaidOrders:0,
+              codPrice:699, prepaidPrice:599, gatewayFeeEx:15.98, gatewayFeeGst:2.88,
+              supplierCost:240, rtoCost:75, otherExpenses:0, metaSpendEx:0, targetCpp:90},
+    clear:   {totalOrders:0, confirmedOrders:0, deliveredOrders:0, prepaidOrders:0,
+              codPrice:0, prepaidPrice:0, gatewayFeeEx:0, gatewayFeeGst:0,
+              supplierCost:0, rtoCost:0, otherExpenses:0, metaSpendEx:0, targetCpp:0}
+  };
+
+  function num(id){ const v = parseFloat($(id).value); return isFinite(v) ? v : 0; }
+  function safeDiv(a,b){ return b === 0 ? 0 : a/b; }
+
+  function money(n){
+    if (!isFinite(n)) n = 0;
+    const sign = n < -0.004 ? "−" : "";
+    return sign + "₹" + Math.abs(n).toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  function pctFromRaw(raw){
+    if (!isFinite(raw)) raw = 0;
+    return (raw*100).toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2}) + "%";
+  }
+  function count(n){
+    if (!isFinite(n)) n = 0;
+    return Math.round(n).toLocaleString("en-IN");
+  }
+  function setClass(el, cls){
+    el.classList.remove("pos","neg");
+    if (cls) el.classList.add(cls);
+  }
+
+  function recalc(){
+    const totalOrders     = num("totalOrders");
+    const deliveredOrders = num("deliveredOrders");
+    const prepaidOrders   = num("prepaidOrders");
+    const codPrice        = num("codPrice");
+    const prepaidPrice    = num("prepaidPrice");
+    const gatewayFeeEx    = num("gatewayFeeEx");
+    const gatewayFeeGst   = num("gatewayFeeGst");
+    const supplierCost    = num("supplierCost");
+    const rtoCost         = num("rtoCost");
+    const otherExpenses   = num("otherExpenses");
+    const metaSpendEx     = num("metaSpendEx");
+    const targetCpp       = num("targetCpp");
+
+    const totalGatewayDeduction = gatewayFeeEx + gatewayFeeGst;
+    const netPrepaidSettlement  = prepaidPrice - totalGatewayDeduction;
+    const metaSpendIncl         = metaSpendEx * 1.18;
+
+    const codOrders    = totalOrders - prepaidOrders;
+    const codDelivered = deliveredOrders - prepaidOrders;
+    const codRto        = codOrders - codDelivered;
+    const rtoCharges    = codRto * rtoCost;
+    const codMargin     = codDelivered * (codPrice - supplierCost) - rtoCharges;
+    const prepaidRevenue = prepaidOrders * netPrepaidSettlement;
+    const totalCashIn   = codMargin + prepaidRevenue;
+
+    const supplierPayment = prepaidOrders * supplierCost;
+    const totalCashOut    = otherExpenses + metaSpendIncl + supplierPayment;
+    const netCash         = totalCashIn - totalCashOut;
+
+    const profitPerDelivered = safeDiv(netCash, deliveredOrders);
+    const breakevenEx  = totalOrders === 0 ? 0 : Math.max(0, safeDiv((totalCashIn - supplierPayment - otherExpenses) / 1.18, totalOrders));
+    const breakevenIncl = breakevenEx * 1.18;
+    const deliveryRateRaw = safeDiv(deliveredOrders, totalOrders);
+    const cashMarginRaw   = safeDiv(totalCashIn, codDelivered);
+
+    const outputGst = (codDelivered*codPrice + prepaidOrders*prepaidPrice) * 18/118;
+    const inputGst  = (metaSpendEx*0.18) + (gatewayFeeGst*prepaidOrders) + (deliveredOrders*supplierCost*18/118) + (otherExpenses*18/118);
+    const netGst    = outputGst - inputGst;
+    const profitAfterGst = netGst > 0 ? netCash - netGst : netCash;
+
+    const metaCppEx = safeDiv(metaSpendEx, totalOrders);
+
+    // ---- write out ----
+    $("rCodDelivered").textContent = count(codDelivered);
+    $("codDeliveredHint").textContent = count(codDelivered) + " of " + count(codOrders) + " COD orders";
+    $("rCodMargin").textContent = money(codMargin); setClass($("rCodMargin"), codMargin<0?"neg":"");
+    $("rPrepaidRevenue").textContent = money(prepaidRevenue);
+    $("rTotalCashIn").textContent = money(totalCashIn);
+
+    $("rMetaSpendIncl").textContent = money(metaSpendIncl);
+    $("rSupplierPayment").textContent = money(supplierPayment);
+    $("rOtherExp").textContent = money(otherExpenses);
+    $("rTotalCashOut").textContent = money(totalCashOut);
+
+    $("rOutputGst").textContent = money(outputGst);
+    $("rInputGst").textContent = money(inputGst);
+    $("rNetGst").textContent = (netGst<0 ? "(ITC credit) " : "") + money(Math.abs(netGst));
+    setClass($("rNetGst"), netGst<0?"pos":"");
+
+    $("rMetaCpp").textContent = money(metaCppEx);
+    $("rBreakevenIncl").textContent = money(breakevenIncl);
+    $("rProfitPerDelivered").textContent = money(profitPerDelivered);
+    setClass($("rProfitPerDelivered"), profitPerDelivered<0?"neg":profitPerDelivered>0?"pos":"");
+    $("rCashMargin").textContent = pctFromRaw(cashMarginRaw);
+
+    $("kpiNetCash").textContent = money(netCash);
+    setClass($("kpiNetCash"), netCash<0?"neg":netCash>0?"pos":"");
+    $("kpiProfitAfterGst").textContent = money(profitAfterGst);
+    setClass($("kpiProfitAfterGst"), profitAfterGst<0?"neg":profitAfterGst>0?"pos":"");
+    $("kpiBreakeven").textContent = money(breakevenEx);
+    $("kpiDeliveryRate").textContent = pctFromRaw(deliveryRateRaw);
+
+    // ---- verdict ----
+    const v = $("verdict"), vt = $("verdictText"), vs = $("verdictSub");
+    if (totalOrders === 0) {
+      v.className = "verdict warn";
+      vt.textContent = "Add order numbers to see a verdict";
+      vs.textContent = "Fill in orders and ad spend, or load a preset above.";
+    } else if (metaCppEx <= breakevenEx) {
+      const headroom = breakevenEx - metaCppEx;
+      v.className = "verdict good";
+      vt.textContent = "Profitable at this CPP";
+      vs.textContent = "Meta CPP " + money(metaCppEx) + " is " + money(headroom) + " under the break-even CPP of " + money(breakevenEx) + ".";
+    } else if (metaCppEx <= breakevenEx * 1.08) {
+      v.className = "verdict warn";
+      vt.textContent = "Right at break-even";
+      vs.textContent = "Meta CPP " + money(metaCppEx) + " is within 8% of the break-even CPP of " + money(breakevenEx) + ".";
+    } else {
+      const over = metaCppEx - breakevenEx;
+      v.className = "verdict bad";
+      vt.textContent = "Losing money at this CPP";
+      vs.textContent = "Meta CPP " + money(metaCppEx) + " is " + money(over) + " over the break-even CPP of " + money(breakevenEx) + ".";
+    }
+    if (targetCpp > 0 && totalOrders > 0) {
+      vs.textContent += (metaCppEx <= targetCpp
+        ? " Also under your ₹" + targetCpp.toLocaleString("en-IN") + " scale-up target."
+        : " Above your ₹" + targetCpp.toLocaleString("en-IN") + " scale-up target.");
+    }
+  }
+
+  ids.forEach(id => $(id).addEventListener("input", recalc));
+
+  document.querySelectorAll("[data-preset]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const p = PRESETS[btn.dataset.preset];
+      ids.forEach(id => { if (p[id] !== undefined) $(id).value = p[id]; });
+      recalc();
+    });
+  });
+
+  recalc();
+})();
+</script>
